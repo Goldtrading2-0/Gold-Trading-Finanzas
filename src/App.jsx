@@ -3,8 +3,9 @@ import { supabase } from "./supabaseClient";
 import {
   Users, TrendingUp, TrendingDown, Wallet, Plus, X, Trash2, Pencil,
   LogOut, Loader2, AlertTriangle, LayoutDashboard, Receipt, ArrowDownCircle,
-  ArrowUpCircle, Search
+  ArrowUpCircle, Search, Upload, Check
 } from "lucide-react";
+import Papa from "papaparse";
 import { ResponsiveContainer, ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from "recharts";
 
 /* ===========================================================
@@ -14,6 +15,29 @@ import { ResponsiveContainer, ComposedChart, Bar, Line, XAxis, YAxis, CartesianG
 const METODOS = ["Mercado Pago", "Transferencia", "Hotmart", "Efectivo", "Otro"];
 const CATEGORIAS = ["Plataformas y software", "Publicidad", "Comisiones de pago", "Producción de contenido", "Otros"];
 const ESTADOS = [["activo", "Activo"], ["pausado", "Pausado"], ["cancelado", "Cancelado"]];
+
+// Niveles de membresía (alumnos) — el monto se autocompleta pero se puede editar igual
+const PLANES = [
+  ["Básico", 37],
+  ["Premium", 47],
+  ["Personalizado", null],
+];
+function planNameFor(amount) {
+  const n = Number(amount);
+  if (n === 37) return "Básico";
+  if (n === 47) return "Premium";
+  return "Personalizado";
+}
+
+// Conceptos de ingreso (pagos) — cada uno sugiere un monto, siempre editable
+const CONCEPTOS = [
+  ["Membresía mensual", null],
+  ["Mentoría 1-1 · 1 mes", 297],
+  ["Mentoría 1-1 · 2 meses", 497],
+  ["Mentoría 1-1 · 3 meses", 797],
+  ["Curso grabado (pago único)", 19],
+  ["Otro", null],
+];
 
 const MESES = ["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"];
 const MESES_LARGO = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
@@ -51,17 +75,34 @@ const GlobalStyle = () => (
     body { margin: 0; }
     .gt-scroll::-webkit-scrollbar { width: 8px; height: 8px; }
     .gt-scroll::-webkit-scrollbar-thumb { background: #4a3d20; border-radius: 4px; }
-    .gt-btn { cursor: pointer; transition: all .15s ease; }
+    .gt-btn { cursor: pointer; transition: all .18s ease; }
     .gt-btn:hover { filter: brightness(1.15); transform: translateY(-1px); }
     .gt-btn:active { transform: translateY(0); }
-    .gt-row:hover { background: rgba(212,175,55,0.06) !important; }
+    .gt-primary { position: relative; overflow: hidden; box-shadow: 0 2px 14px rgba(212,175,55,0.25); }
+    .gt-primary::after {
+      content: ""; position: absolute; top: 0; left: -60%; width: 40%; height: 100%;
+      background: linear-gradient(115deg, transparent, rgba(255,255,255,0.55), transparent);
+      transform: skewX(-20deg);
+    }
+    .gt-primary:hover::after { animation: shine 0.9s ease forwards; }
+    @keyframes shine { to { left: 130%; } }
+    .gt-card { transition: transform .2s ease, box-shadow .2s ease, border-color .2s ease; }
+    .gt-card:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,0,0,0.35); }
+    .gt-row:hover { background: rgba(212,175,55,0.07) !important; }
+    .gt-shimmer { position: relative; height: 2px; overflow: hidden; background: rgba(212,175,55,0.15); }
+    .gt-shimmer::after {
+      content: ""; position: absolute; top: 0; left: 0; height: 100%; width: 35%;
+      background: linear-gradient(90deg, transparent, #f4d976, transparent);
+      animation: sweep 3.2s ease-in-out infinite;
+    }
+    @keyframes sweep { 0% { left: -35%; } 100% { left: 100%; } }
     input, select, textarea, button { font-family: inherit; }
     input:focus, select:focus, textarea:focus { outline: 2px solid #d4af37; outline-offset: 1px; }
     ::placeholder { color: #6b6048; }
     @keyframes spin { to { transform: rotate(360deg); } }
     table { border-collapse: collapse; width: 100%; }
-    th { text-align: left; font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.5px; color: #8a7c58; padding: 8px 10px; border-bottom: 1px solid rgba(212,175,55,0.2); }
-    td { padding: 10px; font-size: 13px; border-bottom: 1px solid rgba(212,175,55,0.08); color: #e8dcc0; }
+    th { text-align: left; font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.6px; color: #8a7c58; padding: 10px; border-bottom: 1px solid rgba(212,175,55,0.2); font-family: 'Oswald', sans-serif; }
+    td { padding: 11px 10px; font-size: 13px; border-bottom: 1px solid rgba(212,175,55,0.08); color: #e8dcc0; }
   `}</style>
 );
 
@@ -99,22 +140,22 @@ function AuthScreen() {
       <div style={{ width: "min(400px,100%)", background: "#0d0b08", border: "1px solid rgba(212,175,55,0.3)", borderRadius: 14, padding: 30 }}>
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", marginBottom: 20 }}>
           <GTMark size={52} />
-          <div style={{ fontFamily: "Georgia, serif", fontWeight: 700, fontSize: 20, marginTop: 10, background: "linear-gradient(135deg,#f4d976,#d4af37 50%,#a67c1f)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", textAlign: "center" }}>
+          <div style={{ fontFamily: "'Oswald', sans-serif", fontWeight: 700, fontSize: 20, letterSpacing: 0.5, textTransform: "uppercase", marginTop: 10, background: "linear-gradient(135deg,#f4d976,#d4af37 50%,#a67c1f)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", textAlign: "center" }}>
             GOLD TRADING 2.0
           </div>
           <div style={{ fontSize: 11, color: "#9c8f6f", letterSpacing: 1.5, textTransform: "uppercase", marginTop: 2 }}>Panel financiero · Acceso privado</div>
         </div>
 
         <div style={{ display: "flex", gap: 6, background: "#14110c", border: "1px solid rgba(212,175,55,0.25)", borderRadius: 9, padding: 4, marginBottom: 20 }}>
-          <button onClick={() => setMode("login")} className="gt-btn" style={{ flex: 1, border: "none", padding: "8px 0", borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: "pointer", background: mode === "login" ? "linear-gradient(135deg,#f4d976,#c9973f)" : "transparent", color: mode === "login" ? "#1a1206" : "#c9b98a" }}>Ingresar</button>
-          <button onClick={() => setMode("signup")} className="gt-btn" style={{ flex: 1, border: "none", padding: "8px 0", borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: "pointer", background: mode === "signup" ? "linear-gradient(135deg,#f4d976,#c9973f)" : "transparent", color: mode === "signup" ? "#1a1206" : "#c9b98a" }}>Crear cuenta</button>
+          <button onClick={() => setMode("login")} className={`gt-btn${mode === "login" ? " gt-primary" : ""}`} style={{ flex: 1, border: "none", padding: "8px 0", borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: "pointer", background: mode === "login" ? "linear-gradient(135deg,#f4d976,#c9973f)" : "transparent", color: mode === "login" ? "#1a1206" : "#c9b98a" }}>Ingresar</button>
+          <button onClick={() => setMode("signup")} className={`gt-btn${mode === "signup" ? " gt-primary" : ""}`} style={{ flex: 1, border: "none", padding: "8px 0", borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: "pointer", background: mode === "signup" ? "linear-gradient(135deg,#f4d976,#c9973f)" : "transparent", color: mode === "signup" ? "#1a1206" : "#c9b98a" }}>Crear cuenta</button>
         </div>
 
         <form onSubmit={submit}>
           <input type="email" required placeholder="Email" style={inputStyle} value={email} onChange={(e) => setEmail(e.target.value)} />
           <input type="password" required minLength={6} placeholder="Contraseña" style={inputStyle} value={password} onChange={(e) => setPassword(e.target.value)} />
           {msg && <div style={{ fontSize: 12, marginBottom: 12, color: msg.ok ? "#3ecf8e" : "#e0554f" }}>{msg.text}</div>}
-          <button type="submit" disabled={busy} className="gt-btn" style={{ width: "100%", padding: "12px", borderRadius: 8, border: "none", background: "linear-gradient(135deg,#f4d976,#c9973f)", color: "#1a1206", fontWeight: 700, fontSize: 14, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+          <button type="submit" disabled={busy} className="gt-btn gt-primary" style={{ width: "100%", padding: "12px", borderRadius: 8, border: "none", background: "linear-gradient(135deg,#f4d976,#c9973f)", color: "#1a1206", fontWeight: 700, fontSize: 14, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
             {busy && <Loader2 size={16} style={{ animation: "spin 1s linear infinite" }} />}
             {mode === "login" ? "Ingresar" : "Crear cuenta"}
           </button>
@@ -197,21 +238,22 @@ function Header({ tab, setTab, onLogout, email }) {
     ["egresos", "Egresos", <ArrowDownCircle size={14} />],
   ];
   return (
-    <div style={{ borderBottom: "1px solid rgba(212,175,55,0.25)", padding: "20px 16px" }}>
-      <div style={{ maxWidth: 1150, margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 14 }}>
+    <div style={{ position: "relative", padding: "22px 16px 0" }}>
+      <div style={{ position: "absolute", top: -80, left: "10%", width: 300, height: 300, background: "radial-gradient(circle, rgba(212,175,55,0.16), transparent 70%)", pointerEvents: "none" }} />
+      <div style={{ maxWidth: 1150, margin: "0 auto", position: "relative", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 14, paddingBottom: 18 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
           <GTMark size={40} />
           <div>
-            <div style={{ fontFamily: "Georgia, serif", fontWeight: 700, fontSize: 19, letterSpacing: 0.5, background: "linear-gradient(135deg,#f4d976,#d4af37 50%,#a67c1f)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
+            <div style={{ fontFamily: "'Oswald', sans-serif", fontWeight: 700, fontSize: 20, letterSpacing: 1, textTransform: "uppercase", background: "linear-gradient(135deg,#f4d976,#d4af37 50%,#a67c1f)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
               GOLD TRADING <span style={{ opacity: 0.85 }}>2.0</span>
             </div>
-            <div style={{ fontSize: 10.5, letterSpacing: 1.3, color: "#9c8f6f", textTransform: "uppercase" }}>Panel financiero</div>
+            <div style={{ fontSize: 10.5, letterSpacing: 1.6, color: "#9c8f6f", textTransform: "uppercase", fontFamily: "'Oswald', sans-serif" }}>Panel financiero</div>
           </div>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
           <div style={{ display: "flex", gap: 6, background: "#14110c", border: "1px solid rgba(212,175,55,0.3)", borderRadius: 10, padding: 4 }}>
             {tabs.map(([val, lab, icon]) => (
-              <button key={val} onClick={() => setTab(val)} className="gt-btn" style={{ display: "flex", alignItems: "center", gap: 6, border: "none", cursor: "pointer", padding: "8px 14px", borderRadius: 7, fontSize: 12.5, fontWeight: 600, background: tab === val ? "linear-gradient(135deg,#f4d976,#c9973f)" : "transparent", color: tab === val ? "#1a1206" : "#c9b98a" }}>{icon}{lab}</button>
+              <button key={val} onClick={() => setTab(val)} className={`gt-btn${tab === val ? " gt-primary" : ""}`} style={{ display: "flex", alignItems: "center", gap: 6, border: "none", cursor: "pointer", padding: "8px 14px", borderRadius: 7, fontSize: 12.5, fontWeight: 600, letterSpacing: 0.3, background: tab === val ? "linear-gradient(135deg,#f4d976,#c9973f)" : "transparent", color: tab === val ? "#1a1206" : "#c9b98a" }}>{icon}{lab}</button>
             ))}
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: "#9c8f6f" }}>
@@ -220,6 +262,7 @@ function Header({ tab, setTab, onLogout, email }) {
           </div>
         </div>
       </div>
+      <div className="gt-shimmer" />
     </div>
   );
 }
@@ -283,8 +326,8 @@ function Resumen({ students, payments, expenses }) {
         </div>
       )}
 
-      <div style={{ background: "#14110c", border: "1px solid rgba(212,175,55,0.2)", borderRadius: 12, padding: 20 }}>
-        <div style={{ fontFamily: "Georgia, serif", fontSize: 15, color: "#f4d976", marginBottom: 16 }}>Ingresos vs. Egresos — últimos 6 meses</div>
+      <div className="gt-card" style={{ background: "linear-gradient(160deg, #17130d, #100d09)", border: "1px solid rgba(212,175,55,0.2)", borderRadius: 12, padding: 20 }}>
+        <div style={{ fontFamily: "'Oswald', sans-serif", fontWeight: 600, fontSize: 16, letterSpacing: 0.4, color: "#f4d976", marginBottom: 16, textTransform: "uppercase" }}>Ingresos vs. Egresos — últimos 6 meses</div>
         <ResponsiveContainer width="100%" height={280}>
           <ComposedChart data={m.series}>
             <CartesianGrid strokeDasharray="3 3" stroke="rgba(212,175,55,0.1)" />
@@ -303,9 +346,13 @@ function Resumen({ students, payments, expenses }) {
 }
 function MetricCard({ icon, label, value, color }) {
   return (
-    <div style={{ background: "#14110c", border: "1px solid rgba(212,175,55,0.2)", borderRadius: 10, padding: 14 }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 6, color, marginBottom: 8 }}>{icon}<span style={{ fontSize: 10.5, color: "#8a7c58", textTransform: "uppercase", letterSpacing: 0.4 }}>{label}</span></div>
-      <div style={{ fontSize: 21, fontWeight: 700, fontFamily: "Georgia, serif", color }}>{value}</div>
+    <div className="gt-card" style={{ position: "relative", background: "linear-gradient(160deg, #17130d, #100d09)", border: "1px solid rgba(212,175,55,0.2)", borderRadius: 12, padding: "16px 16px 16px 18px", overflow: "hidden" }}>
+      <div style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 3, background: color }} />
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+        <div style={{ width: 26, height: 26, borderRadius: 8, background: `${color}1f`, color, display: "flex", alignItems: "center", justifyContent: "center" }}>{icon}</div>
+        <span style={{ fontSize: 10.5, color: "#8a7c58", textTransform: "uppercase", letterSpacing: 0.6, fontFamily: "'Oswald', sans-serif" }}>{label}</span>
+      </div>
+      <div style={{ fontSize: 23, fontWeight: 600, fontFamily: "'Oswald', sans-serif", letterSpacing: 0.3, color }}>{value}</div>
     </div>
   );
 }
@@ -313,6 +360,7 @@ function MetricCard({ icon, label, value, color }) {
 /* ---------------- Alumnos ---------------- */
 function Alumnos({ students, payments, onNew, onEdit, reload }) {
   const [search, setSearch] = useState("");
+  const [importOpen, setImportOpen] = useState(false);
   const lastPaymentByStudent = useMemo(() => {
     const map = {};
     payments.forEach((p) => { if (!p.student_id) return; if (!map[p.student_id] || p.payment_date > map[p.student_id]) map[p.student_id] = p.payment_date; });
@@ -334,10 +382,13 @@ function Alumnos({ students, payments, onNew, onEdit, reload }) {
           <Search size={14} style={{ position: "absolute", left: 10, top: 10, color: "#8a7c58" }} />
           <input placeholder="Buscar alumno..." value={search} onChange={(e) => setSearch(e.target.value)} style={{ width: "100%", background: "#0d0b08", border: "1px solid rgba(212,175,55,0.3)", borderRadius: 7, padding: "8px 10px 8px 30px", color: "#f0e6d2", fontSize: 13 }} />
         </div>
-        <button onClick={onNew} className="gt-btn" style={{ display: "flex", alignItems: "center", gap: 6, padding: "9px 16px", borderRadius: 8, border: "none", background: "linear-gradient(135deg,#f4d976,#c9973f)", color: "#1a1206", fontWeight: 700, fontSize: 13, cursor: "pointer" }}><Plus size={15} /> Nuevo alumno</button>
+        <div style={{ display: "flex", gap: 8 }}>
+          <button onClick={() => setImportOpen(true)} className="gt-btn" style={{ display: "flex", alignItems: "center", gap: 6, padding: "9px 16px", borderRadius: 8, border: "1px solid rgba(212,175,55,0.35)", background: "transparent", color: "#d4af37", fontWeight: 700, fontSize: 13, cursor: "pointer" }}><Upload size={15} /> Importar CSV</button>
+          <button onClick={onNew} className="gt-btn gt-primary" style={{ display: "flex", alignItems: "center", gap: 6, padding: "9px 16px", borderRadius: 8, border: "none", background: "linear-gradient(135deg,#f4d976,#c9973f)", color: "#1a1206", fontWeight: 700, fontSize: 13, cursor: "pointer" }}><Plus size={15} /> Nuevo alumno</button>
+        </div>
       </div>
 
-      <div style={{ background: "#14110c", border: "1px solid rgba(212,175,55,0.2)", borderRadius: 12, overflow: "hidden" }}>
+      <div className="gt-card" style={{ background: "linear-gradient(160deg, #17130d, #100d09)", border: "1px solid rgba(212,175,55,0.2)", borderRadius: 12, overflow: "hidden" }}>
         <div style={{ overflowX: "auto" }}>
           <table>
             <thead><tr><th>Nombre</th><th>Contacto</th><th>Plan</th><th>Estado</th><th>Último pago</th><th></th></tr></thead>
@@ -367,6 +418,7 @@ function Alumnos({ students, payments, onNew, onEdit, reload }) {
           </table>
         </div>
       </div>
+      {importOpen && <ImportStudentsModal existing={students} onClose={() => setImportOpen(false)} onDone={() => { setImportOpen(false); reload(); }} />}
     </div>
   );
 }
@@ -400,6 +452,19 @@ function StudentForm({ initial, onClose, onSaved }) {
         <div style={{ flex: 1 }}><label style={labelStyle}>Email</label><input type="email" style={inputStyle} value={f.email} onChange={(e) => set("email", e.target.value)} /></div>
         <div style={{ flex: 1 }}><label style={labelStyle}>Teléfono</label><input style={inputStyle} value={f.phone} onChange={(e) => set("phone", e.target.value)} /></div>
       </div>
+      <div style={{ marginBottom: 12 }}>
+        <label style={labelStyle}>Plan</label>
+        <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
+          {PLANES.map(([lab, amt]) => (
+            <button key={lab} onClick={() => set("plan_amount", amt ?? f.plan_amount)} className="gt-btn" style={{
+              flex: 1, padding: "8px 0", borderRadius: 7, cursor: "pointer", fontSize: 12, fontWeight: 600,
+              border: `1px solid ${planNameFor(f.plan_amount) === lab ? "#d4af37" : "rgba(212,175,55,0.25)"}`,
+              background: planNameFor(f.plan_amount) === lab ? "rgba(212,175,55,0.15)" : "transparent",
+              color: planNameFor(f.plan_amount) === lab ? "#f4d976" : "#9c8f6f"
+            }}>{lab}{amt ? ` · $${amt}` : ""}</button>
+          ))}
+        </div>
+      </div>
       <div style={{ display: "flex", gap: 10, marginBottom: 12 }}>
         <div style={{ flex: 1 }}><label style={labelStyle}>Monto del plan (mensual)</label><input type="number" style={inputStyle} value={f.plan_amount} onChange={(e) => set("plan_amount", e.target.value)} /></div>
         <div style={{ flex: 1 }}><label style={labelStyle}>Fecha de alta</label><input type="date" style={inputStyle} value={f.join_date} onChange={(e) => set("join_date", e.target.value)} /></div>
@@ -418,6 +483,134 @@ function StudentForm({ initial, onClose, onSaved }) {
   );
 }
 
+/* ---------------- Importar alumnos desde CSV (Skool u otro) ---------------- */
+function ImportStudentsModal({ existing, onClose, onDone }) {
+  const [rows, setRows] = useState(null); // array de objetos crudos del CSV
+  const [headers, setHeaders] = useState([]);
+  const [nameCol, setNameCol] = useState("");
+  const [emailCol, setEmailCol] = useState("");
+  const [planAmount, setPlanAmount] = useState(47);
+  const [status, setStatus] = useState("activo");
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState(null);
+  const fileRef = useRef(null);
+
+  const existingEmails = useMemo(() => new Set(existing.filter((s) => s.email).map((s) => s.email.trim().toLowerCase())), [existing]);
+
+  const guessColumn = (heads, candidates) => heads.find((h) => candidates.some((c) => h.toLowerCase().includes(c))) || "";
+
+  const handleFile = (file) => {
+    if (!file) return;
+    Papa.parse(file, {
+      header: true,
+      skipEmptyLines: true,
+      complete: (res) => {
+        const heads = res.meta.fields || [];
+        setHeaders(heads);
+        setRows(res.data);
+        setNameCol(guessColumn(heads, ["name", "nombre"]));
+        setEmailCol(guessColumn(heads, ["email", "mail", "correo"]));
+      },
+    });
+  };
+
+  const preview = useMemo(() => {
+    if (!rows || !nameCol) return [];
+    return rows
+      .map((r) => ({ name: (r[nameCol] || "").trim(), email: emailCol ? (r[emailCol] || "").trim() : "" }))
+      .filter((r) => r.name);
+  }, [rows, nameCol, emailCol]);
+
+  const newOnes = preview.filter((r) => !r.email || !existingEmails.has(r.email.toLowerCase()));
+  const duplicates = preview.length - newOnes.length;
+
+  const doImport = async () => {
+    setBusy(true);
+    const payload = newOnes.map((r) => ({ name: r.name, email: r.email || null, plan_amount: Number(planAmount) || 0, status, join_date: todayISO() }));
+    let inserted = 0;
+    const chunkSize = 200;
+    for (let i = 0; i < payload.length; i += chunkSize) {
+      const chunk = payload.slice(i, i + chunkSize);
+      const { error } = await supabase.from("students").insert(chunk);
+      if (!error) inserted += chunk.length;
+    }
+    setBusy(false);
+    setResult(inserted);
+  };
+
+  const inputStyle = { width: "100%", background: "#0d0b08", border: "1px solid rgba(212,175,55,0.3)", borderRadius: 7, padding: "9px 10px", color: "#f0e6d2", fontSize: 13 };
+  const labelStyle = { fontSize: 11, color: "#9c8f6f", textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 5, display: "block" };
+
+  return (
+    <Modal title="Importar alumnos desde CSV" onClose={onClose}>
+      {result !== null ? (
+        <div style={{ textAlign: "center", padding: "20px 0" }}>
+          <Check size={36} style={{ color: "#3ecf8e", marginBottom: 10 }} />
+          <div style={{ fontSize: 15, color: "#f0e6d2", marginBottom: 4 }}>Se importaron <b style={{ color: "#3ecf8e" }}>{result}</b> alumnos nuevos.</div>
+          {duplicates > 0 && <div style={{ fontSize: 12, color: "#8a7c58" }}>({duplicates} ya existían por email y se saltearon)</div>}
+          <button onClick={onDone} className="gt-btn gt-primary" style={{ marginTop: 18, padding: "10px 20px", borderRadius: 8, border: "none", background: "linear-gradient(135deg,#f4d976,#c9973f)", color: "#1a1206", fontWeight: 700, cursor: "pointer" }}>Listo</button>
+        </div>
+      ) : !rows ? (
+        <>
+          <div style={{ fontSize: 13, color: "#9c8f6f", marginBottom: 14 }}>
+            Subí el CSV exportado de Skool (Members → Export), o cualquier otro con al menos una columna de nombre.
+          </div>
+          <input ref={fileRef} type="file" accept=".csv" style={{ display: "none" }} onChange={(e) => handleFile(e.target.files[0])} />
+          <button onClick={() => fileRef.current.click()} className="gt-btn" style={{ width: "100%", padding: "24px", borderRadius: 8, border: "1px dashed rgba(212,175,55,0.35)", background: "transparent", color: "#9c8f6f", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 8, fontSize: 13 }}>
+            <Upload size={20} /> Elegir archivo CSV
+          </button>
+        </>
+      ) : (
+        <>
+          <div style={{ display: "flex", gap: 10, marginBottom: 12 }}>
+            <div style={{ flex: 1 }}>
+              <label style={labelStyle}>Columna con el nombre</label>
+              <select style={inputStyle} value={nameCol} onChange={(e) => setNameCol(e.target.value)}>
+                <option value="">— Elegir —</option>
+                {headers.map((h) => <option key={h} value={h}>{h}</option>)}
+              </select>
+            </div>
+            <div style={{ flex: 1 }}>
+              <label style={labelStyle}>Columna con el email (opcional)</label>
+              <select style={inputStyle} value={emailCol} onChange={(e) => setEmailCol(e.target.value)}>
+                <option value="">— Ninguna —</option>
+                {headers.map((h) => <option key={h} value={h}>{h}</option>)}
+              </select>
+            </div>
+          </div>
+          <div style={{ display: "flex", gap: 10, marginBottom: 14 }}>
+            <div style={{ flex: 1 }}><label style={labelStyle}>Plan mensual para todos</label><input type="number" style={inputStyle} value={planAmount} onChange={(e) => setPlanAmount(e.target.value)} /></div>
+            <div style={{ flex: 1 }}>
+              <label style={labelStyle}>Estado inicial</label>
+              <select style={inputStyle} value={status} onChange={(e) => setStatus(e.target.value)}>{ESTADOS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select>
+            </div>
+          </div>
+
+          <div style={{ fontSize: 12, color: "#9c8f6f", marginBottom: 8 }}>
+            {preview.length} filas detectadas · <span style={{ color: "#3ecf8e" }}>{newOnes.length} nuevas</span>{duplicates > 0 && <> · <span style={{ color: "#e0a94f" }}>{duplicates} ya existentes (se saltean)</span></>}
+          </div>
+
+          <div className="gt-scroll" style={{ maxHeight: 180, overflowY: "auto", border: "1px solid rgba(212,175,55,0.2)", borderRadius: 8, marginBottom: 18 }}>
+            <table>
+              <thead><tr><th>Nombre</th><th>Email</th></tr></thead>
+              <tbody>
+                {preview.slice(0, 50).map((r, i) => (
+                  <tr key={i}><td>{r.name}</td><td style={{ color: "#9c8f6f" }}>{r.email || "—"}</td></tr>
+                ))}
+              </tbody>
+            </table>
+            {preview.length > 50 && <div style={{ textAlign: "center", fontSize: 11, color: "#7a6f54", padding: 8 }}>... y {preview.length - 50} más</div>}
+          </div>
+
+          <FormButtons onCancel={onClose} onSubmit={doImport} busy={busy} label={`Importar ${newOnes.length} alumnos`} />
+        </>
+      )}
+    </Modal>
+  );
+}
+
+
+
 /* ---------------- Ingresos ---------------- */
 function Ingresos({ payments, students, onNew, onEdit, reload }) {
   const [filterMonth, setFilterMonth] = useState("");
@@ -425,27 +618,45 @@ function Ingresos({ payments, students, onNew, onEdit, reload }) {
   const filtered = filterMonth ? payments.filter((p) => monthKey(p.payment_date) === filterMonth) : payments;
   const total = filtered.reduce((s, p) => s + Number(p.amount), 0);
 
+  const byConcept = useMemo(() => {
+    const map = {};
+    filtered.forEach((p) => { const c = p.concept || "Otro"; map[c] = (map[c] || 0) + Number(p.amount); });
+    return Object.entries(map).sort((a, b) => b[1] - a[1]);
+  }, [filtered]);
+
   const remove = async (id) => { if (!confirm("¿Eliminar este ingreso?")) return; await supabase.from("payments").delete().eq("id", id); reload(); };
 
   return (
     <div style={{ paddingTop: 24 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16, gap: 10, flexWrap: "wrap" }}>
         <input type="month" value={filterMonth} onChange={(e) => setFilterMonth(e.target.value)} style={{ background: "#0d0b08", border: "1px solid rgba(212,175,55,0.3)", borderRadius: 7, padding: "8px 10px", color: "#f0e6d2", fontSize: 13 }} />
-        <button onClick={onNew} className="gt-btn" style={{ display: "flex", alignItems: "center", gap: 6, padding: "9px 16px", borderRadius: 8, border: "none", background: "linear-gradient(135deg,#f4d976,#c9973f)", color: "#1a1206", fontWeight: 700, fontSize: 13, cursor: "pointer" }}><Plus size={15} /> Nuevo ingreso</button>
+        <button onClick={onNew} className="gt-btn gt-primary" style={{ display: "flex", alignItems: "center", gap: 6, padding: "9px 16px", borderRadius: 8, border: "none", background: "linear-gradient(135deg,#f4d976,#c9973f)", color: "#1a1206", fontWeight: 700, fontSize: 13, cursor: "pointer" }}><Plus size={15} /> Nuevo ingreso</button>
       </div>
-      <div style={{ fontSize: 13, color: "#9c8f6f", marginBottom: 10 }}>Total: <b style={{ color: "#3ecf8e" }}>{money(total)}</b> ({filtered.length} pagos)</div>
-      <div style={{ background: "#14110c", border: "1px solid rgba(212,175,55,0.2)", borderRadius: 12, overflow: "hidden" }}>
+      <div style={{ fontSize: 13, color: "#9c8f6f", marginBottom: 12 }}>Total: <b style={{ color: "#3ecf8e" }}>{money(total)}</b> ({filtered.length} pagos)</div>
+
+      {byConcept.length > 0 && (
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 18 }}>
+          {byConcept.map(([concept, amt]) => (
+            <div key={concept} style={{ background: "#14110c", border: "1px solid rgba(212,175,55,0.2)", borderRadius: 8, padding: "8px 14px" }}>
+              <div style={{ fontSize: 10.5, color: "#8a7c58", textTransform: "uppercase", letterSpacing: 0.4, fontFamily: "'Oswald', sans-serif" }}>{concept}</div>
+              <div style={{ fontSize: 15, fontWeight: 600, color: "#3ecf8e", fontFamily: "'Oswald', sans-serif" }}>{money(amt)}</div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div className="gt-card" style={{ background: "linear-gradient(160deg, #17130d, #100d09)", border: "1px solid rgba(212,175,55,0.2)", borderRadius: 12, overflow: "hidden" }}>
         <div style={{ overflowX: "auto" }}>
           <table>
-            <thead><tr><th>Fecha</th><th>Alumno</th><th>Monto</th><th>Método</th><th>Período</th><th></th></tr></thead>
+            <thead><tr><th>Fecha</th><th>Alumno</th><th>Concepto</th><th>Monto</th><th>Método</th><th></th></tr></thead>
             <tbody>
               {filtered.length === 0 ? <tr><td colSpan={6} style={{ textAlign: "center", color: "#7a6f54", padding: 30 }}>No hay ingresos cargados.</td></tr> : filtered.map((p) => (
                 <tr key={p.id} className="gt-row">
                   <td>{p.payment_date}</td>
                   <td style={{ color: "#f0e6d2" }}>{studentName(p.student_id)}</td>
+                  <td style={{ color: "#9c8f6f" }}>{p.concept || "—"}</td>
                   <td style={{ color: "#3ecf8e", fontWeight: 600 }}>{money(p.amount)}</td>
                   <td>{p.method}</td>
-                  <td style={{ color: "#9c8f6f" }}>{p.period_label || "—"}</td>
                   <td>
                     <div style={{ display: "flex", gap: 6 }}>
                       <button onClick={() => onEdit(p)} className="gt-btn" style={{ background: "transparent", border: "1px solid rgba(212,175,55,0.3)", color: "#d4af37", borderRadius: 6, padding: 5, cursor: "pointer" }}><Pencil size={12} /></button>
@@ -464,7 +675,7 @@ function Ingresos({ payments, students, onNew, onEdit, reload }) {
 
 function PaymentForm({ initial, students, onClose, onSaved }) {
   const isNew = !initial.id;
-  const [f, setF] = useState({ student_id: initial.student_id || "", amount: initial.amount ?? "", payment_date: initial.payment_date || todayISO(), method: initial.method || METODOS[0], period_label: initial.period_label || "", notes: initial.notes || "" });
+  const [f, setF] = useState({ student_id: initial.student_id || "", amount: initial.amount ?? "", payment_date: initial.payment_date || todayISO(), method: initial.method || METODOS[0], concept: initial.concept || CONCEPTOS[0][0], period_label: initial.period_label || "", notes: initial.notes || "" });
   const [busy, setBusy] = useState(false);
   const set = (k, v) => setF((p) => ({ ...p, [k]: v }));
   const inputStyle = { width: "100%", background: "#0d0b08", border: "1px solid rgba(212,175,55,0.3)", borderRadius: 7, padding: "9px 10px", color: "#f0e6d2", fontSize: 13 };
@@ -473,6 +684,10 @@ function PaymentForm({ initial, students, onClose, onSaved }) {
   const onStudentChange = (id) => {
     const st = students.find((s) => s.id === id);
     setF((p) => ({ ...p, student_id: id, amount: p.amount || st?.plan_amount || "" }));
+  };
+  const onConceptChange = (concept) => {
+    const suggested = CONCEPTOS.find(([lab]) => lab === concept)?.[1];
+    setF((p) => ({ ...p, concept, amount: suggested ?? p.amount }));
   };
 
   const submit = async () => {
@@ -488,7 +703,13 @@ function PaymentForm({ initial, students, onClose, onSaved }) {
   return (
     <Modal title={isNew ? "Nuevo ingreso" : "Editar ingreso"} onClose={onClose}>
       <div style={{ marginBottom: 12 }}>
-        <label style={labelStyle}>Alumno</label>
+        <label style={labelStyle}>Concepto</label>
+        <select style={inputStyle} value={f.concept} onChange={(e) => onConceptChange(e.target.value)}>
+          {CONCEPTOS.map(([lab, amt]) => <option key={lab} value={lab}>{lab}{amt ? ` · $${amt}` : ""}</option>)}
+        </select>
+      </div>
+      <div style={{ marginBottom: 12 }}>
+        <label style={labelStyle}>Alumno {f.concept !== "Membresía mensual" && "(opcional)"}</label>
         <select style={inputStyle} value={f.student_id} onChange={(e) => onStudentChange(e.target.value)}>
           <option value="">— Sin asignar —</option>
           {students.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
@@ -519,10 +740,10 @@ function Egresos({ expenses, onNew, onEdit, reload }) {
     <div style={{ paddingTop: 24 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16, gap: 10, flexWrap: "wrap" }}>
         <input type="month" value={filterMonth} onChange={(e) => setFilterMonth(e.target.value)} style={{ background: "#0d0b08", border: "1px solid rgba(212,175,55,0.3)", borderRadius: 7, padding: "8px 10px", color: "#f0e6d2", fontSize: 13 }} />
-        <button onClick={onNew} className="gt-btn" style={{ display: "flex", alignItems: "center", gap: 6, padding: "9px 16px", borderRadius: 8, border: "none", background: "linear-gradient(135deg,#f4d976,#c9973f)", color: "#1a1206", fontWeight: 700, fontSize: 13, cursor: "pointer" }}><Plus size={15} /> Nuevo egreso</button>
+        <button onClick={onNew} className="gt-btn gt-primary" style={{ display: "flex", alignItems: "center", gap: 6, padding: "9px 16px", borderRadius: 8, border: "none", background: "linear-gradient(135deg,#f4d976,#c9973f)", color: "#1a1206", fontWeight: 700, fontSize: 13, cursor: "pointer" }}><Plus size={15} /> Nuevo egreso</button>
       </div>
       <div style={{ fontSize: 13, color: "#9c8f6f", marginBottom: 10 }}>Total: <b style={{ color: "#e0554f" }}>{money(total)}</b> ({filtered.length} gastos)</div>
-      <div style={{ background: "#14110c", border: "1px solid rgba(212,175,55,0.2)", borderRadius: 12, overflow: "hidden" }}>
+      <div className="gt-card" style={{ background: "linear-gradient(160deg, #17130d, #100d09)", border: "1px solid rgba(212,175,55,0.2)", borderRadius: 12, overflow: "hidden" }}>
         <div style={{ overflowX: "auto" }}>
           <table>
             <thead><tr><th>Fecha</th><th>Categoría</th><th>Descripción</th><th>Monto</th><th></th></tr></thead>
@@ -587,7 +808,7 @@ function Modal({ title, onClose, children }) {
       <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", zIndex: 50 }} />
       <div className="gt-scroll" style={{ position: "fixed", top: "50%", left: "50%", transform: "translate(-50%,-50%)", width: "min(480px,92vw)", maxHeight: "90vh", overflowY: "auto", background: "#0d0b08", border: "1px solid rgba(212,175,55,0.35)", borderRadius: 14, zIndex: 51, padding: 22 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18 }}>
-          <div style={{ fontFamily: "Georgia, serif", fontSize: 18, color: "#f4d976" }}>{title}</div>
+          <div style={{ fontFamily: "'Oswald', sans-serif", fontWeight: 600, fontSize: 19, letterSpacing: 0.3, color: "#f4d976" }}>{title}</div>
           <button onClick={onClose} className="gt-btn" style={{ background: "none", border: "none", color: "#c9b98a", cursor: "pointer" }}><X size={20} /></button>
         </div>
         {children}
@@ -599,7 +820,7 @@ function FormButtons({ onCancel, onSubmit, busy, label }) {
   return (
     <div style={{ display: "flex", gap: 10 }}>
       <button onClick={onCancel} className="gt-btn" style={{ flex: 1, padding: "11px", borderRadius: 8, border: "1px solid rgba(212,175,55,0.3)", background: "transparent", color: "#c9b98a", cursor: "pointer", fontSize: 14, fontWeight: 600 }}>Cancelar</button>
-      <button onClick={onSubmit} disabled={busy} className="gt-btn" style={{ flex: 2, padding: "11px", borderRadius: 8, border: "none", background: "linear-gradient(135deg,#f4d976,#c9973f)", color: "#1a1206", cursor: "pointer", fontSize: 14, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+      <button onClick={onSubmit} disabled={busy} className="gt-btn gt-primary" style={{ flex: 2, padding: "11px", borderRadius: 8, border: "none", background: "linear-gradient(135deg,#f4d976,#c9973f)", color: "#1a1206", cursor: "pointer", fontSize: 14, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
         {busy && <Loader2 size={16} style={{ animation: "spin 1s linear infinite" }} />}{label}
       </button>
     </div>
